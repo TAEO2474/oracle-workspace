@@ -198,26 +198,30 @@ CREATE TABLE emp02(
 
 SELECT table_name FROM user_tables; --테이블조회방법
 
--- A섹션
+--B세션
+-- A세션이 COMMIT이 되면 B세션은 해당 행에 대한 LOCK상태가 해제가 되면서 오류메세지 출력
+--ORA-00001: unique constraint (HR.SYS_C006997) violated
+
+
+================================
+SELECT table_name FROM user_tables;
+
+--A세션
 INSERT INTO emp02
-VALUES(1,'park',9000);
+VALUES(1, 'park', 9000);
 
 SELECT * FROM emp02;
 
+--B세션
+INSERT INTO emp02
+VALUES(1, 'park', 9000);
+
+--A세션
 commit;
 
-SELECT * FROM emp02;
-
-INSERT INTO emp02 
-VALUES(2,'dong',8000);
-
-commit;
-
-UPDATE emp02
-SET first_name='min'
-where emp_id=2;
-
-commit;
+--B세션
+-- A세션이 COMMIT이 되면 B세션은 해당 행에 대한 LOCK상태가 해제가 되면서 오류메세지 출력
+--ORA-00001: unique constraint (HR.SYS_C006997) violated
 
 
 
