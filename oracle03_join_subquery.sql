@@ -843,8 +843,8 @@ SELECT department_id, job_id, count(*)
 ROLLUP(department_id, job_id )
 20	MK_MAN	1    --그룹
 20	MK_REP	1    --그룹
-20		    2    --소계
-        	107  --총계
+20		            2    --소계
+                      107  --총계
  ---------------------------------*/    
  SELECT department_id, count(*)
  FROM employees
@@ -940,5 +940,145 @@ SELECT department_id, job_id, count(*)
  WHERE e.department_id = d.department_id
  GROUP BY d.department_name, rollup(job_id);
 
+
+
+/*-------------
+ CUBE()함수
+ CUBE 함수에 제시한 컬럼에 대해서 결합 가능한 모든 집계를 계산한다.
+ 다차원 집계를 제공하여 다양하게 데이터를 분석할 수 있게 한다.
+ 예를 들어 부서와 직업을 CUBE로 사용하면 부서별 합계, 직업별 합계, 부서별 직업별 합계, 전체합계가 조회된다.
+ 즉, 조합할 수 있는 경우의 수가 모두 조합되는 것이다.
+ 
+ CUBE(column1, column2)
+     (column1, column2)
+     (column1)
+     (column2)
+     ( )
+
+CUBE(department_id, job_id )
+20	MK_MAN	1    --그룹
+20	MK_REP	1    --그룹
+20		            2    --소계
+    MK_MAN    1     --소계
+    MK_REP      1     --소계
+        	         107  --총계
+ ----------------*/
+ 
+SELECT department_id, count(*)
+ FROM employees
+ GROUP BY cube(department_id)
+ ORDER BY department_id;
+  
+ 
+ SELECT department_id, job_id, count(*)
+ FROM employees
+ GROUP BY cube(department_id, job_id)
+ ORDER BY department_id, job_id;
+ 
+ 
+ SELECT department_id, job_id, count(*)
+ FROM employees
+ GROUP BY cube((department_id, job_id))
+ ORDER BY department_id, job_id;
+
+/*=================================================================================
+ 그룹내 순위관련함수
+ RANK( ) OVER( ) : 특정 컬럼에 대한 순위를 구하는 함수로 동일한 값에 대해서는 동일한 순위를 준다. 
+ DENSE_RANK( ) OVER( ) : 동일한 순위를 하나의 건수로 취급한다.
+ ROW_NUMBER( ) OVER( ) : 동일한 값이라도 고유한 순위를 부여한다.
+ ===================================================================================*/
+SELECT job_id, first_name, salary , rank() over(ORDER BY salary DESC)
+ FROM employees;  
+ 
+ 
+SELECT job_id, first_name, salary , rank() over(PARTITION BY  job_id ORDER BY salary DESC)
+ FROM employees; 
+
+ SELECT job_id, first_name, salary , dense_rank() over(ORDER BY salary DESC) --일상생활에서 더 자주 사용됨
+FROM employees;     -- 1 2 2 3
+
+=============================================
+SELECT job_id, first_name, salary , rank() over(ORDER BY salary DESC)
+ FROM employees;           -- 1 2 2 4
+ 
+ -- 그룹별로 순위를 부여할때 사용 : PARTITION BY
+  SELECT job_id, first_name, salary , rank() over(PARTITION BY  job_id ORDER BY salary DESC)
+ FROM employees;   -- 1 1 1...1 2 3 4 5
+ 
+ SELECT job_id, first_name, salary , dense_rank() over(ORDER BY salary DESC)
+FROM employees;     -- 1 2 2 3
+ 
+ 
+ SELECT job_id, first_name, salary , row_number() over(ORDER BY salary DESC)
+FROM employees;   --1 2 3 4
+
+/*=====================================================================================================
+ 계층형 질의
+ 1. START WITH 절은 계층구조 전개이 시작 위치를 지정하는 구문이다. 
+ 2. CONNECT BY 절은 다음에 전개될 자식 데이터를 지정하는 구문이다. 
+ 3. 루트 데이터는 LEVEL 1이다. (0이 아님) (의사컬럼)
+    (1)CONNECT_BY_ROOT(의사컬럼)  
+       - 현재 조회된 최상위 정보 
+    (2)CONNECT_BY_ISLEAF(의사컬럼) 
+       - 현재 행이 마지막 계층의 데이터인지 확인 
+       - LEAF을 만나면 1을 반환하고 0을 반환
+    (3) SYS_CONNECT_BY_PATH( 컬럼, 구분자)(의사컬럼)
+        - 루트 노드부터 해당 행까지의 경로를 입력한 컬럼기준으로 구분자를 사용해서 보여줌  
+    (4)CONNECT_BY_ISCYCLE(의사컬럼)  
+       - 현재 행의 조상이기도 한 자식을 갖는 경우 1을 반환 
+       - 이 의사컬럼을 사용하기 위해서 CONNECT BY다음에 NOCYCLE을 사용해야한다.
+ 4. PRIOR 자식 = 부모 (부모->자식 방향으로 전개. 순방향 전개)
+    PRIOR 부모 = 자식 (자식->부모 방향으로 전개. 역방향 전개)
+ =================================================================================================*/
+SELECT first_name, lpad(first_name,10)
+FROM employees;
+
+SELECT first_name, lpad(first_name,10,'*')
+FROM employees;
+
+-- 사원 <- 매니저
+ -- START WITH :  시작 조건의 의미하고 ,  CONNECT BY PRIOR :  조인 조건 ,    LEVEL  계층 값을 가지고 있음
+SELECT employee_id, /*manager_id,*/ LEVEL,  lpad('  ', 3*(LEVEL-1)) || first_name 
+FROM employees
+START WITH manager_id IS NULL -- 아이디가 null로된 사람부터 시작
+CONNECT BY PRIOR employee_id = manager_id;  -- 조인조건
+
+ 
+ 
+ --  매니저 <- 사원
+SELECT employee_id, /*manager_id,*/ LEVEL, lpad(' ',3*(LEVEL-1)) || first_name
+FROM employees
+START WITH manager_id IS NOT NULL -- 아이디가 null이아닌 사람부터 시작 
+CONNECT BY PRIOR manager_id = employee_id ;
+
+
+SELECT employee_id, /*manager_id,*/ LEVEL, lpad(' ',3*(LEVEL-1)) || first_name,
+       CONNECT_BY_ROOT employee_id
+FROM employees
+START WITH manager_id IS NULL
+CONNECT BY PRIOR employee_id = manager_id;
+
+
+SELECT employee_id, /*manager_id,*/ LEVEL, lpad(' ',3*(LEVEL-1)) || first_name,
+       CONNECT_BY_ROOT employee_id, CONNECT_BY_ISLEAF 
+FROM employees
+START WITH manager_id IS NULL
+CONNECT BY PRIOR employee_id = manager_id;
+
+SELECT employee_id, /*manager_id,*/ LEVEL, lpad(' ',3*(LEVEL-1)) || first_name,
+       CONNECT_BY_ROOT employee_id
+FROM employees
+START WITH manager_id IS NULL
+CONNECT BY PRIOR employee_id = manager_id;
+
+
+
+-- (3) SYS_CONNECT_BY_PATH( 컬럼, 구분자)(의사컬럼)
+  --    루트 노드부터 해당 행까지의 경로를 입력한 컬럼기준으로 구분자를 사용해서 보여줌  
+SELECT employee_id, /*manager_id,*/ LEVEL, lpad(' ',3*(LEVEL-1)) || first_name,
+       CONNECT_BY_ROOT employee_id , CONNECT_BY_ISLEAF,  SYS_CONNECT_BY_PATH(first_name, '/')
+FROM employees
+START WITH manager_id IS NULL
+CONNECT BY PRIOR employee_id = manager_id;
 
 
